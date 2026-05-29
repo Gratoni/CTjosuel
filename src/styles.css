@@ -101,6 +101,8 @@
   }
   html {
     scroll-behavior: smooth;
+    /* Offset anchor jumps so the fixed header doesn't cover section titles */
+    scroll-padding-top: 6rem;
   }
   body {
     background: var(--background);
@@ -112,6 +114,25 @@
   ::selection {
     background: var(--primary);
     color: var(--primary-foreground);
+  }
+  /* Visible keyboard focus for accessibility */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 3px;
+  }
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }
 

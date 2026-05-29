@@ -12,6 +12,8 @@ import {
   Star,
   Quote,
   ArrowRight,
+  Calendar,
+  Share2,
 } from "lucide-react";
 
 /* ===== Icons ===== */
@@ -121,7 +123,15 @@ function Nav() {
     return () => window.removeEventListener("scroll", h);
   }, []);
 
-  const navItems = ["SOBRE", "MODALIDADES", "MESTRE", "GALERIA", "CONTATO"];
+  const navItems = ["SOBRE", "MODALIDADES", "EVENTOS", "MESTRE", "GALERIA", "CONTATO"];
+
+  // Lock body scroll while the mobile menu is open
+  useEffect(() => {
+    document.body.style.overflow = menuOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [menuOpen]);
 
   return (
     <motion.header
@@ -579,6 +589,310 @@ function Modalities() {
   );
 }
 
+/* ===== Events ===== */
+
+type FightEvent = {
+  id: string;
+  date: string; // ISO 8601
+  title: string;
+  card: string;
+  modality: string;
+  venue: string;
+  city: string;
+  status: "CONFIRMADO" | "INSCRIÇÕES ABERTAS" | "EM BREVE";
+};
+
+const fightEvents: FightEvent[] = [
+  {
+    id: "furacao-fight-night-12",
+    date: "2026-06-20T19:00:00-03:00",
+    title: "Furacão Fight Night 12",
+    card: "Card principal · 8 lutas amadoras de Muay Thai",
+    modality: "MUAY THAI",
+    venue: "Ginásio Família Furacão",
+    city: "São Paulo · SP",
+    status: "CONFIRMADO",
+  },
+  {
+    id: "copa-furacao-jiu-jitsu",
+    date: "2026-07-12T09:00:00-03:00",
+    title: "Copa Furacão de Jiu Jitsu",
+    card: "Torneio por faixas e categorias · Gi e No-Gi",
+    modality: "JIU JITSU",
+    venue: "Arena Jardim Tietê",
+    city: "São Paulo · SP",
+    status: "INSCRIÇÕES ABERTAS",
+  },
+  {
+    id: "desafio-mma-interno",
+    date: "2026-08-30T18:30:00-03:00",
+    title: "Desafio MMA Interno",
+    card: "Seletiva da equipe · atletas amadores",
+    modality: "MMA",
+    venue: "CT Josuel Nascimento",
+    city: "São Paulo · SP",
+    status: "EM BREVE",
+  },
+];
+
+const eventDateFmt = new Intl.DateTimeFormat("pt-BR", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+const eventTimeFmt = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+function buildShareLink(ev: FightEvent) {
+  const when = `${eventDateFmt.format(new Date(ev.date))} às ${eventTimeFmt.format(new Date(ev.date))}`;
+  const text = `🥊 ${ev.title} — ${ev.modality}\n📅 ${when}\n📍 ${ev.venue}, ${ev.city}\n\nAcompanhe os eventos do CT Josuel Nascimento (Família Furacão).`;
+  return `https://wa.me/?text=${encodeURIComponent(text)}`;
+}
+
+function useCountdown(target: string) {
+  const [diff, setDiff] = useState(() => new Date(target).getTime() - Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setDiff(new Date(target).getTime() - Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [target]);
+
+  const clamped = Math.max(diff, 0);
+  return {
+    past: diff <= 0,
+    days: Math.floor(clamped / 86400000),
+    hours: Math.floor((clamped / 3600000) % 24),
+    minutes: Math.floor((clamped / 60000) % 60),
+    seconds: Math.floor((clamped / 1000) % 60),
+  };
+}
+
+const statusStyles: Record<FightEvent["status"], string> = {
+  CONFIRMADO: "border-primary/60 bg-blood text-primary-foreground",
+  "INSCRIÇÕES ABERTAS": "border-primary/50 bg-card text-primary",
+  "EM BREVE": "border-border bg-card/60 text-muted-foreground",
+};
+
+function CountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center">
+      <span className="font-display text-4xl md:text-5xl tabular-nums leading-none">
+        {String(value).padStart(2, "0")}
+      </span>
+      <span className="mt-1 text-[9px] tracking-[0.3em] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function Events() {
+  // Show the soonest upcoming event as the featured countdown
+  const upcoming = [...fightEvents]
+    .filter((e) => new Date(e.date).getTime() > Date.now())
+    .sort((a, b) => +new Date(a.date) - +new Date(b.date));
+  const featured = upcoming[0] ?? fightEvents[0];
+  const cd = useCountdown(featured.date);
+
+  const jsonLd = JSON.stringify(
+    fightEvents.map((e) => ({
+      "@context": "https://schema.org",
+      "@type": "SportsEvent",
+      name: e.title,
+      startDate: e.date,
+      sport: e.modality,
+      eventStatus: "https://schema.org/EventScheduled",
+      eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+      location: {
+        "@type": "Place",
+        name: e.venue,
+        address: { "@type": "PostalAddress", addressLocality: e.city, addressCountry: "BR" },
+      },
+      organizer: {
+        "@type": "SportsOrganization",
+        name: "CT Josuel Nascimento — Família Furacão",
+      },
+    })),
+  );
+
+  return (
+    <section id="eventos" className="relative overflow-hidden py-32">
+      <div className="absolute inset-0 bg-background" />
+      <div
+        className="absolute left-1/2 top-0 h-[500px] w-[900px] -translate-x-1/2 bg-radial-red opacity-40"
+        aria-hidden="true"
+      />
+      {/* SEO: structured data for fight events */}
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+
+      <div className="relative mx-auto max-w-7xl px-6">
+        <Reveal>
+          <SectionLabel n="03">EVENTOS</SectionLabel>
+        </Reveal>
+        <div className="mb-12 flex flex-wrap items-end justify-between gap-6">
+          <Reveal delay={0.1}>
+            <h2 className="font-display text-5xl md:text-7xl leading-[0.9] max-w-3xl">
+              PRÓXIMAS <span className="text-blood italic">LUTAS.</span>
+            </h2>
+          </Reveal>
+          <Reveal delay={0.2}>
+            <p className="max-w-sm text-muted-foreground">
+              Calendário oficial da Família Furacão. Acompanhe, compartilhe e suba no ringue.
+            </p>
+          </Reveal>
+        </div>
+
+        {/* Featured event with live countdown */}
+        <Reveal delay={0.1}>
+          <div className="relative mb-6 overflow-hidden border border-primary/40 bg-card/50 backdrop-blur shadow-glow-sm">
+            <div className="absolute inset-0 bg-noise opacity-10" aria-hidden="true" />
+            <div className="relative grid gap-8 p-8 md:grid-cols-[1.3fr_1fr] md:items-center md:p-10">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="border border-primary/50 bg-background/60 px-3 py-1 text-[9px] tracking-[0.3em] font-display text-primary">
+                    {featured.modality}
+                  </span>
+                  <span
+                    className={`border px-3 py-1 text-[9px] tracking-[0.3em] font-display ${statusStyles[featured.status]}`}
+                  >
+                    {featured.status}
+                  </span>
+                </div>
+                <h3 className="mt-5 font-display text-4xl md:text-5xl leading-[0.95]">
+                  {featured.title}
+                </h3>
+                <p className="mt-3 text-muted-foreground">{featured.card}</p>
+                <dl className="mt-6 space-y-2 text-sm">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <dt className="sr-only">Data</dt>
+                    <dd>
+                      {eventDateFmt.format(new Date(featured.date))} ·{" "}
+                      {eventTimeFmt.format(new Date(featured.date))}
+                    </dd>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <MapPin className="h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                    <dt className="sr-only">Local</dt>
+                    <dd>
+                      {featured.venue} · {featured.city}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <a
+                    href={WA_LINK}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group relative inline-flex items-center gap-3 overflow-hidden bg-blood px-6 py-3 font-display text-xs tracking-[0.25em] uppercase text-primary-foreground shadow-glow-sm transition-all hover:shadow-glow clip-slash"
+                  >
+                    <WhatsAppIcon className="relative z-10 h-4 w-4" />
+                    <span className="relative z-10">Confirmar presença</span>
+                  </a>
+                  <a
+                    href={buildShareLink(featured)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Compartilhar ${featured.title} no WhatsApp`}
+                    className="group inline-flex items-center gap-3 border border-primary/40 px-6 py-3 font-display text-xs tracking-[0.25em] uppercase text-foreground transition-colors hover:border-primary hover:text-primary"
+                  >
+                    <Share2 className="h-4 w-4" aria-hidden="true" />
+                    Compartilhar
+                  </a>
+                </div>
+              </div>
+
+              {/* Countdown */}
+              <div className="border-t border-border pt-6 md:border-l md:border-t-0 md:pl-8 md:pt-0">
+                <div className="text-[10px] tracking-[0.35em] text-primary font-display">
+                  {cd.past ? "ACONTECENDO AGORA" : "CONTAGEM REGRESSIVA"}
+                </div>
+                {cd.past ? (
+                  <div className="mt-4 font-display text-3xl text-blood italic">É HOJE!</div>
+                ) : (
+                  <div
+                    className="mt-4 flex items-center gap-4"
+                    role="timer"
+                    aria-label={`Faltam ${cd.days} dias para ${featured.title}`}
+                  >
+                    <CountdownUnit value={cd.days} label="DIAS" />
+                    <span className="text-2xl text-primary/40" aria-hidden="true">
+                      :
+                    </span>
+                    <CountdownUnit value={cd.hours} label="HORAS" />
+                    <span className="text-2xl text-primary/40" aria-hidden="true">
+                      :
+                    </span>
+                    <CountdownUnit value={cd.minutes} label="MIN" />
+                    <span className="text-2xl text-primary/40" aria-hidden="true">
+                      :
+                    </span>
+                    <CountdownUnit value={cd.seconds} label="SEG" />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </Reveal>
+
+        {/* All events list */}
+        <div className="grid gap-4 md:grid-cols-3">
+          {fightEvents.map((ev, i) => {
+            const d = new Date(ev.date);
+            return (
+              <Reveal key={ev.id} delay={i * 0.08}>
+                <article className="group flex h-full flex-col border border-border bg-card/40 p-6 backdrop-blur transition-all hover:border-primary/60 hover:bg-card">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col items-center border border-primary/40 px-3 py-2 text-center">
+                      <span className="font-display text-2xl leading-none text-blood">
+                        {String(d.getDate()).padStart(2, "0")}
+                      </span>
+                      <span className="text-[9px] tracking-[0.2em] text-muted-foreground uppercase">
+                        {d.toLocaleDateString("pt-BR", { month: "short" })}
+                      </span>
+                    </div>
+                    <span
+                      className={`border px-2 py-1 text-[8px] tracking-[0.25em] font-display ${statusStyles[ev.status]}`}
+                    >
+                      {ev.status}
+                    </span>
+                  </div>
+                  <div className="mt-4 text-[9px] tracking-[0.3em] font-display text-primary">
+                    {ev.modality}
+                  </div>
+                  <h3 className="mt-2 font-display text-xl leading-tight">{ev.title}</h3>
+                  <p className="mt-2 text-xs text-muted-foreground">{ev.card}</p>
+                  <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden="true" />
+                    <span>
+                      {ev.venue} · {ev.city}
+                    </span>
+                  </div>
+                  <div className="mt-auto flex items-center gap-2 pt-5">
+                    <a
+                      href={WA_LINK}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 bg-blood px-3 py-2 text-center font-display text-[10px] tracking-[0.2em] uppercase text-primary-foreground transition-all hover:shadow-glow-sm"
+                    >
+                      Quero ir
+                    </a>
+                    <a
+                      href={buildShareLink(ev)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Compartilhar ${ev.title} no WhatsApp`}
+                      className="flex h-9 w-9 items-center justify-center border border-border transition-colors hover:border-primary hover:text-primary"
+                    >
+                      <Share2 className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  </div>
+                </article>
+              </Reveal>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ===== Master ===== */
 
 function Master() {
@@ -617,7 +931,7 @@ function Master() {
 
         <div>
           <Reveal>
-            <SectionLabel n="03">O MESTRE</SectionLabel>
+            <SectionLabel n="04">O MESTRE</SectionLabel>
           </Reveal>
           <Reveal delay={0.1}>
             <h2 className="font-display text-6xl md:text-8xl leading-[0.9]">
@@ -683,7 +997,7 @@ function Gallery() {
         <div className="mb-16 flex flex-wrap items-end justify-between gap-6">
           <div>
             <Reveal>
-              <SectionLabel n="04">GALERIA</SectionLabel>
+              <SectionLabel n="05">GALERIA</SectionLabel>
             </Reveal>
             <Reveal delay={0.1}>
               <h2 className="font-display text-5xl md:text-7xl leading-[0.9]">
@@ -766,7 +1080,7 @@ function Testimonials() {
 
       <div className="relative mx-auto max-w-7xl px-6">
         <Reveal>
-          <SectionLabel n="05">DEPOIMENTOS</SectionLabel>
+          <SectionLabel n="06">DEPOIMENTOS</SectionLabel>
         </Reveal>
         <Reveal delay={0.1}>
           <h2 className="font-display text-5xl md:text-7xl leading-[0.9] max-w-3xl">
@@ -995,6 +1309,7 @@ export default function Landing() {
         <Hero />
         <About />
         <Modalities />
+        <Events />
         <Master />
         <Gallery />
         <Testimonials />
